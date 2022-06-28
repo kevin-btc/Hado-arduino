@@ -43,7 +43,7 @@
 //
 ///////////////////////////////////////////////////////////////////
 
-byte                     g_showerShutoffTime = 7; // Duration valve will be closed to warn time is up
+byte                     g_showerShutoffTime = 2; // Duration valve will be closed to warn time is up
 byte                     g_showerTime = 7; // Duration shower time
 byte                     g_monitor_mins = g_showerTime + DELTA_MONITOR; // Duration control
 byte*                    g_Rpms;     // History of rpms in the last "n" minutes

@@ -7,6 +7,25 @@
 ///////////////////////////////////////////////////////////////////
 
 
+bool anyZeroInSlice(byte *arr, byte target, byte len) {
+  byte* newArray = new byte[len];
+
+  for (byte i = 0, j = 0; i < sizeof(arr); i++) {
+    if (i >= target && j < len) {
+      newArray[j] = arr[i];
+      j++;
+    }
+  }
+
+  for (byte i = 0 ; i < len; i++) {
+    if (newArray[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void Monitor::setRpms(byte monitor_mins) {
 
   if (c_rpms) {
@@ -27,10 +46,20 @@ void Monitor::clearRpms() {
 }
 
 
-void Monitor::init(byte monitor_mins, byte showerTime) {
+void Monitor::init(byte monitor_mins, byte showerTime, byte showerShutoffTime) {
   c_monitor_mins = monitor_mins;
   c_showerTime = showerTime;
+  c_showerShutoffTime = showerShutoffTime;
   c_isSet = true;
+
+  Monitor::setRpms(monitor_mins);
+
+}
+
+void Monitor::update(byte monitor_mins, byte showerTime, byte showerShutoffTime) {
+  c_monitor_mins = monitor_mins;
+  c_showerTime = showerTime;
+  c_showerShutoffTime = showerShutoffTime;
 
   Monitor::setRpms(monitor_mins);
 
@@ -60,14 +89,18 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
     if ( c_rpms[idx] )
     {
       l_numUsedTicks++;
-    }
+    } 
   }
 
   if ( l_numUsedTicks >= c_showerTime && !*waterOff )
   {
     *waterOff = true;
     clearRpms();
-  } else if (l_numUsedTicks >= 1 && l_rpm == 0 ) {
+  } else if (l_numUsedTicks == 1 && c_rpms[2] && l_rpm == 0) {
+    clearRpms();
+  } else if (l_numUsedTicks == 2 && c_rpms[2] && c_rpms[3] && l_rpm == 0) {
+    clearRpms();
+  } else if (l_numUsedTicks && anyZeroInSlice(c_rpms, 0, c_showerShutoffTime ) && *waterOff == false) {
     clearRpms();
   }
 }

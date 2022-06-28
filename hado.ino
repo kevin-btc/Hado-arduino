@@ -33,7 +33,7 @@ void setup()
 
   handleOpenCmd(); // add etat in eeprom
 
-  monitor.init(g_monitor_mins, g_showerTime);
+  monitor.init(g_monitor_mins, g_showerTime, g_showerShutoffTime);
   monitor.setRpms(g_monitor_mins);
 
   attachInterrupt( digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
@@ -51,14 +51,14 @@ void loop()
   while (SerialBT.available())
   {
     query = SerialBT.readString();
-    Serial.println(query);
+//    Serial.println(query);
   }
 
-  while (Serial.available())
-  {
-    query = Serial.readString();
-    SerialBT.write(Serial.read());
-  }
+//  while (Serial.available())
+//  {
+//    query = Serial.readString();
+//    SerialBT.write(Serial.read());
+//  }
 
   if (query.length() != 0)
   {
@@ -138,7 +138,7 @@ void valveClosingTimer(String query) {
       while (SerialBT.available())
       {
         query = SerialBT.readString();
-        Serial.println(query);
+//        Serial.println(query);
       }
 
       if (query.length() != 0)
@@ -196,8 +196,6 @@ bool commands(String query) {
       showerShutoffTimeCmd(value);
     } else if (strcmp(TIME, search) == 0) {
       getCurrentShowerTime();
-    } else if (strcmp(MENU, search) == 0) {
-      handleRoot();
     } else {
       debug();
     }
@@ -240,34 +238,6 @@ bool checkPinCode(String pinCode) {
 
   return isCorrectPinCode;
 }
-
-void handleRoot()
-{
-  String message;
-
-  message += g_waterOff ? "Valve is Closed\n\n" : "Valve is Opened\n\n";
-  message += "Shower time : " + String(g_showerTime) + "\n";
-  message += "Shower shutoff time : " + String(g_showerShutoffTime) + "\n";
-  message += "Monitor control time : " + String(g_monitor_mins) + "\n";
-  message += "Setup ended : " + String(g_isSetup ? "true\n" : "false\n");
-  message += "\nHELP :\n";
-  message += "-> 1 for close valve\n";
-  message += "-> 2 for open valve\n";
-  message += "-> 3 for reset HADO system\n";
-  message += "-> 4 for get current shower time\n";
-  message += "-> 5 for show this menu\n";
-  message += "-> 6 for new shower time\n";
-  message += "-> 7 for new shower shutoff time\n";
-  message += "-> 8 for show all parameters\n";
-  message += "g_HallSensorPulses : " + String(g_HallSensorPulses) + "\n";
-  message += "g_waterOff : " + String(g_waterOff) + "\n";
-  message += "g_monitor_mins : " + String(g_monitor_mins) + "\n";
-
-
-
-  SerialBT.println(message);
-}
-
 
 void debug()
 {
@@ -375,7 +345,7 @@ void showerTimeCmd(char* value)
   g_showerTime = data.getShowerTime();
   g_monitor_mins = g_showerTime + DELTA_MONITOR;
 
-  monitor.setRpms(g_monitor_mins);
+  monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
 
   SerialBT.println("SHOWER_TIME_SAVED");
 
@@ -402,6 +372,8 @@ void showerShutoffTimeCmd(char* value)
 
   data.setShowerShutoffTime(showerShutoffTime);
   g_showerShutoffTime = showerShutoffTime;
+
+  monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
 
   SerialBT.println("SUCCESS_SHOWER_SHUTOFF_TIME");
 
