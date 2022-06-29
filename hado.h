@@ -52,10 +52,12 @@ bool                     checkIfSetup = false;
 bool                     g_isSetup = false;
 bool                     g_isStandBy = false;
 
-
 // global variables accessed from ISR that need to be protected
 volatile bool            g_waterOff = false;     // True if valve needs to be closed temporarily
 volatile byte            g_HallSensorPulses = 0;   // FlowMeter pulses that have occurred in the current minute
+
+unsigned long wakeUpTime = 0;
+unsigned long activityTime = 30 * 60 *1000; // min * s * ms;
 
 
 ///////////////////////////////////////////////////////////////////

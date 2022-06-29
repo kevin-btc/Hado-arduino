@@ -92,15 +92,15 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
     } 
   }
 
-  if ( l_numUsedTicks >= c_showerTime && !*waterOff )
+  if ( l_numUsedTicks >= c_showerTime && !*waterOff ) // Reset if too long shower;
   {
     *waterOff = true;
     clearRpms();
-  } else if (l_numUsedTicks == 1 && c_rpms[2] && l_rpm == 0) {
+  } else if (l_numUsedTicks && anyZeroInSlice(c_rpms, 0, c_showerShutoffTime ) && *waterOff == false) { // Reset if short shower
     clearRpms();
-  } else if (l_numUsedTicks == 2 && c_rpms[2] && c_rpms[3] && l_rpm == 0) {
+  }else if (l_numUsedTicks == 1 && c_rpms[2] && l_rpm == 0) { // Reset if short use of water (e.g: washing hand);
     clearRpms();
-  } else if (l_numUsedTicks && anyZeroInSlice(c_rpms, 0, c_showerShutoffTime ) && *waterOff == false) {
+  } else if (l_numUsedTicks == 2 && c_rpms[2] && c_rpms[3] && l_rpm == 0) { // Reset if average use of water (e.g: washing teeth);
     clearRpms();
-  }
+  } 
 }

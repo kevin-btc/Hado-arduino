@@ -39,10 +39,19 @@ void setup()
   attachInterrupt( digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
 
   MonitoringTimer.start();
+
+
 }
 
 void loop()
 {
+  if (millis() - wakeUpTime > activityTime) {
+    digitalWrite(13, LOW);
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    digitalWrite(13, HIGH);
+
+    wakeUpTime = millis();
+  }
 
   String query = "";
 
@@ -51,14 +60,7 @@ void loop()
   while (SerialBT.available())
   {
     query = SerialBT.readString();
-//    Serial.println(query);
   }
-
-//  while (Serial.available())
-//  {
-//    query = Serial.readString();
-//    SerialBT.write(Serial.read());
-//  }
 
   if (query.length() != 0)
   {
@@ -138,7 +140,7 @@ void valveClosingTimer(String query) {
       while (SerialBT.available())
       {
         query = SerialBT.readString();
-//        Serial.println(query);
+        //        Serial.println(query);
       }
 
       if (query.length() != 0)
@@ -196,8 +198,10 @@ bool commands(String query) {
       showerShutoffTimeCmd(value);
     } else if (strcmp(TIME, search) == 0) {
       getCurrentShowerTime();
-    } else {
+    } else if (strcmp(MENU, search) == 0) {
       debug();
+    } else {
+      SerialBT.println("COMMAND_NOT_FOUND");
     }
 
     search = strtok(NULL, "&");
