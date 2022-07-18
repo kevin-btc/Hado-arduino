@@ -10,6 +10,10 @@ class Monitor {
     byte              c_showerShutoffTime;
 
     byte*             c_rpms;
+
+    bool              c_isSet = false;
+
+
     byte*             getRpms(void);
 
     void              onTimerTick(byte *sensorPulses, bool *waterOff);
@@ -18,7 +22,7 @@ class Monitor {
     void              setRpms(byte monitor_mins);
     void              clearRpms(void);
 
-    bool              c_isSet = false;
+    bool              hasActivity(void);
 };
 
 #endif

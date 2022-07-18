@@ -45,12 +45,14 @@ void setup()
 
 void loop()
 {
-  if (millis() - wakeUpTime > activityTime) {
-    digitalWrite(13, LOW);
-    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-    digitalWrite(13, HIGH);
+//  digitalWrite(13, HIGH);
 
-    wakeUpTime = millis();
+  if (false && millis() - g_wakeUpTime > g_activityTime) {
+//    digitalWrite(13, LOW);
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+//    digitalWrite(13, HIGH);
+
+    g_wakeUpTime = millis();
   }
 
   String query = "";
@@ -190,7 +192,7 @@ bool commands(String query) {
 
     if ( strcmp(CLOSE, search) == 0 && checkPinCode(ret.pinCode)) {
       handleValveCmd(value);
-    } else if (strcmp(RESET, search) == 0) {
+    } else if (strcmp(RESET, search) == 0&& checkPinCode(ret.pinCode)) {
       handleResetCmd(value);
     } else if (strcmp(SHOWER_TIME , search) == 0 && checkPinCode(ret.pinCode)) {
       showerTimeCmd(value);

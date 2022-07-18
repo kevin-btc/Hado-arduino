@@ -45,6 +45,19 @@ void Monitor::clearRpms() {
   memset( c_rpms, 0, c_monitor_mins );
 }
 
+bool Monitor::hasActivity() {
+  bool hasActivity = false;
+
+  for (int i = 0 ; i < c_monitor_mins ; i++) {
+    if (c_rpms[i]) {
+      hasActivity = true;
+      break;
+    }
+  }
+
+  return hasActivity;
+}
+
 
 void Monitor::init(byte monitor_mins, byte showerTime, byte showerShutoffTime) {
   c_monitor_mins = monitor_mins;
@@ -70,8 +83,11 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
   if (!c_isSet) {
     Serial.println("MUST_BE_SET_BEFORE");
   }
-
-  Serial.println("Timer Tick");
+  if (!hasActivity()) {
+    Serial.println("no activity !");
+  } else {
+    Serial.println("no activity !");
+  }
 
   cli();                          // disable interupts
   long l_rpm = *sensorPulses;     // copy rpm value locally
@@ -89,7 +105,7 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
     if ( c_rpms[idx] )
     {
       l_numUsedTicks++;
-    } 
+    }
   }
 
   if ( l_numUsedTicks >= c_showerTime && !*waterOff ) // Reset if too long shower;
@@ -98,9 +114,9 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
     clearRpms();
   } else if (l_numUsedTicks && anyZeroInSlice(c_rpms, 0, c_showerShutoffTime ) && *waterOff == false) { // Reset if short shower
     clearRpms();
-  }else if (l_numUsedTicks == 1 && c_rpms[2] && l_rpm == 0) { // Reset if short use of water (e.g: washing hand);
+  } else if (l_numUsedTicks == 1 && c_rpms[2] && l_rpm == 0) { // Reset if short use of water (e.g: washing hand);
     clearRpms();
   } else if (l_numUsedTicks == 2 && c_rpms[2] && c_rpms[3] && l_rpm == 0) { // Reset if average use of water (e.g: washing teeth);
     clearRpms();
-  } 
+  }
 }

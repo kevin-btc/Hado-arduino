@@ -2,7 +2,6 @@
 #define _HADO_H_
 
 #include  <VarSpeedServo.h>
-#include  <ArduinoJson.h>
 #include  <LowPower.h>
 #include  <EEPROM.h>
 #include  <Ticker.h>
@@ -46,7 +45,6 @@
 byte                     g_showerShutoffTime = 2; // Duration valve will be closed to warn time is up
 byte                     g_showerTime = 7; // Duration shower time
 byte                     g_monitor_mins = g_showerTime + DELTA_MONITOR; // Duration control
-byte*                    g_Rpms;     // History of rpms in the last "n" minutes
 
 bool                     checkIfSetup = false;
 bool                     g_isSetup = false;
@@ -56,8 +54,8 @@ bool                     g_isStandBy = false;
 volatile bool            g_waterOff = false;     // True if valve needs to be closed temporarily
 volatile byte            g_HallSensorPulses = 0;   // FlowMeter pulses that have occurred in the current minute
 
-unsigned long wakeUpTime = 0;
-unsigned long activityTime = 30 * 60 *1000; // min * s * ms;
+unsigned long            g_wakeUpTime = millis();
+unsigned long            g_activityTime = 180000; // 30 min * 60s * 1000ms;
 
 
 ///////////////////////////////////////////////////////////////////
