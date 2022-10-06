@@ -2,28 +2,20 @@
 #define _HADO_H_
 
 #include  <VarSpeedServo.h>
+#include  <SoftwareSerial.h>
 #include  <LowPower.h>
-#include  <EEPROM.h>
 #include  <Ticker.h>
 
-#include  "SoftwareSerial.h"
+
 #include  "Data.h"
 #include  "Monitor.h"
+#include  "Valve.h"
 
-
-#define HAL_SENSOR_PIN        2    // Flowmeter Hal sensor is connected to this pin
 #define TIMER_PERIOD          60000.0 // 60 secondes. Period required to calculate RPM of Hal effect sensor in ms
 #define DELTA_MONITOR         5
 #define MINUTE_IN_MS          60000
 
-#define OPEN_POSITION         0
-#define CLOSE_POSITION        95
-#define SPEED_VALVE           50
-
-#define VALVE_CTRL_PIN        12
-#define WAIT_END_MOVE         true
-
-#define BTN_PIN               4
+#define HAL_SENSOR_PIN        2    // Flowmeter Hal sensor is connected to this pin
 
 #define BT_PIN_1              10
 #define BT_PIN_2              11
@@ -69,8 +61,8 @@ Monitor                 monitor;
 
 Ticker                   MonitoringTimer([] {monitor.onTimerTick( &g_HallSensorPulses, &g_waterOff);}, TIMER_PERIOD );      // Interupt timer used for counting minutes
 SoftwareSerial           SerialBT(BT_PIN_1, BT_PIN_2);
-VarSpeedServo            Valve;
 Data                     data;
+Valve                    valve;
 
 struct QueryAndPinCode {
     String pinCode;

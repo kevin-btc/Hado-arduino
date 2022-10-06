@@ -1,7 +1,6 @@
 #ifndef _DATA_H
 #define _DATA_H
 
-#include <EEPROM.h>
 #include <Arduino.h>
 
 #ifndef HADO_EEPROM_START

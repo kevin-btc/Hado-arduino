@@ -1,5 +1,6 @@
 #include "Data.h"
 
+#include  <EEPROM.h>
 
 void Data::printAll() {
   Serial.println("  - Shower Time        : " + String(getShowerTime()));

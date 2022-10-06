@@ -14,6 +14,10 @@ void setup()
   SerialBT.begin(9600);
   Serial.begin(9600);
 
+  // Initialize ElectroValve
+
+  valve.init();
+
   // Initialize Hado System
 
   g_isSetup = data.getIsSetup();
@@ -45,12 +49,12 @@ void setup()
 
 void loop()
 {
-//  digitalWrite(13, HIGH);
+  //  digitalWrite(13, HIGH);
 
   if (false && millis() - g_wakeUpTime > g_activityTime) {
-//    digitalWrite(13, LOW);
+    //    digitalWrite(13, LOW);
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-//    digitalWrite(13, HIGH);
+    //    digitalWrite(13, HIGH);
 
     g_wakeUpTime = millis();
   }
@@ -62,6 +66,11 @@ void loop()
   while (SerialBT.available())
   {
     query = SerialBT.readString();
+  }
+
+   while (Serial.available())
+  {
+    query = Serial.readString();
   }
 
   if (query.length() != 0)
@@ -96,12 +105,7 @@ void closeWaterValve()
 {
   g_waterOff = true;
 
-  Valve.attach(VALVE_CTRL_PIN);
-  Valve.write(CLOSE_POSITION, SPEED_VALVE, WAIT_END_MOVE);
-
-  while (Valve.isMoving());
-
-  Valve.detach();
+  valve.close();
 
   g_HallSensorPulses = 0;
 }
@@ -116,12 +120,7 @@ void openWaterValve()
 {
   g_waterOff = false;
 
-  Valve.attach(VALVE_CTRL_PIN);
-  Valve.write(OPEN_POSITION, SPEED_VALVE, WAIT_END_MOVE);
-
-  while (Valve.isMoving());
-
-  Valve.detach();
+valve.open();
 
   g_HallSensorPulses = 0;
 }
@@ -158,7 +157,6 @@ void valveClosingTimer(String query) {
         seconds = leftTimeInSeconde % 60;
         minutes = leftTimeInSeconde / 60;
         SerialBT.println("OPENING IN " + String(minutes) + ":" + String(seconds) + "Seconde");
-
       }
 
       delay(1000);
@@ -192,7 +190,7 @@ bool commands(String query) {
 
     if ( strcmp(CLOSE, search) == 0 && checkPinCode(ret.pinCode)) {
       handleValveCmd(value);
-    } else if (strcmp(RESET, search) == 0&& checkPinCode(ret.pinCode)) {
+    } else if (strcmp(RESET, search) == 0 && checkPinCode(ret.pinCode)) {
       handleResetCmd(value);
     } else if (strcmp(SHOWER_TIME , search) == 0 && checkPinCode(ret.pinCode)) {
       showerTimeCmd(value);

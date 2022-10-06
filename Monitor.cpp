@@ -86,7 +86,7 @@ void Monitor::onTimerTick(byte *sensorPulses, bool *waterOff) {
   if (!hasActivity()) {
     Serial.println("no activity !");
   } else {
-    Serial.println("no activity !");
+    Serial.println("activity !");
   }
 
   cli();                          // disable interupts
