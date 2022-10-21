@@ -11,11 +11,11 @@
 #include  "Monitor.h"
 #include  "Valve.h"
 
-#define TIMER_PERIOD          60000.0 // 60 secondes. Period required to calculate RPM of Hal effect sensor in ms
+#define TIMER_PERIOD          60000.0 // 60 secondes
 #define DELTA_MONITOR         5
 #define MINUTE_IN_MS          60000
 
-#define HAL_SENSOR_PIN        2    // Flowmeter Hal sensor is connected to this pin
+#define HAL_SENSOR_PIN        2
 
 #define BT_PIN_1              10
 #define BT_PIN_2              11
