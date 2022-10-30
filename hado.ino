@@ -6,13 +6,13 @@
 //
 /////////////////////////////////////////////////////////////////////
 
-void setup()
-{
+void setup() {
 
   // Initialize Serial port / Bluetooth
 
-  SerialBT.begin(9600);
   Serial.begin(9600);
+
+  client.begin(9600);
 
   // Initialize ElectroValve
 
@@ -22,8 +22,7 @@ void setup()
 
   g_isSetup = data.getIsSetup();
 
-  if (g_isSetup)
-  {
+  if (g_isSetup) {
     g_showerShutoffTime = data.getShowerShutoffTime();
     g_showerTime = data.getShowerTime();
     g_monitor_mins = g_showerTime + DELTA_MONITOR;
@@ -35,20 +34,17 @@ void setup()
     data.setIsSetup(true);
   }
 
-  handleOpenCmd(); // add etat in eeprom
+  handleOpenCmd();  // add etat in eeprom
 
   monitor.init(g_monitor_mins, g_showerTime, g_showerShutoffTime);
   monitor.setRpms(g_monitor_mins);
 
-  attachInterrupt( digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
+  attachInterrupt(digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
 
   MonitoringTimer.start();
-
-
 }
 
-void loop()
-{
+void loop() {
   //  digitalWrite(13, HIGH);
 
   if (false && millis() - g_wakeUpTime > g_activityTime) {
@@ -63,18 +59,15 @@ void loop()
 
   MonitoringTimer.update();
 
-  while (SerialBT.available())
-  {
-    query = SerialBT.readString();
+  while (client.available()) {
+    query = client.receive();
   }
 
-   while (Serial.available())
-  {
+  while (Serial.available()) {
     query = Serial.readString();
   }
 
-  if (query.length() != 0)
-  {
+  if (query.length() != 0) {
     commands(query);
   }
 
@@ -87,12 +80,13 @@ void loop()
 //
 ///////////////////////////////////////////////////////////////////
 
-void onHallSensorEffect()
-{
+void onHallSensorEffect() {
   // Increase the number of pulses detected by the sensor
   // of the water flowmeter
-  g_HallSensorPulses++;
-  Serial.println("sensor");
+  if (!g_isStandBy) {
+    g_HallSensorPulses++;
+    Serial.println("sensor");
+  }
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -101,8 +95,7 @@ void onHallSensorEffect()
 //
 ///////////////////////////////////////////////////////////////////
 
-void closeWaterValve()
-{
+void closeWaterValve() {
   g_waterOff = true;
 
   valve.close();
@@ -116,52 +109,33 @@ void closeWaterValve()
 //
 ///////////////////////////////////////////////////////////////////
 
-void openWaterValve()
-{
+void openWaterValve() {
   g_waterOff = false;
 
-valve.open();
+  valve.open();
 
   g_HallSensorPulses = 0;
 }
 
 void valveClosingTimer(String query) {
-  if ( g_waterOff )
-  {
+
+
+  if (g_waterOff) {
     handleCloseCmd();
-
-    int leftTimeInSeconde = 0;
-
-    byte seconds = 0;
-    byte minutes = 0;
-
-    for (int t = 0 ; t < g_showerShutoffTime * MINUTE_IN_MS ; t += 1000)
-    {
+    for (int t = 0; t < g_showerShutoffTime * MINUTE_IN_MS; t += 200) {
       query = "";
-      while (SerialBT.available())
-      {
-        query = SerialBT.readString();
-        //        Serial.println(query);
+      while (client.available()) {
+        query = client.receive();
       }
 
-      if (query.length() != 0)
-      {
+      if (query.length() != 0) {
         commands(query);
         if (!g_waterOff) {
           return;
         }
-      } else {
-
-        leftTimeInSeconde = (g_showerShutoffTime * MINUTE_IN_MS - t) / 1000 ;
-
-        seconds = leftTimeInSeconde % 60;
-        minutes = leftTimeInSeconde / 60;
-        SerialBT.println("OPENING IN " + String(minutes) + ":" + String(seconds) + "Seconde");
       }
-
-      delay(1000);
+      delay(200);
     }
-    SerialBT.println("Exit boucle");
     handleOpenCmd();
   }
 }
@@ -180,28 +154,31 @@ bool commands(String query) {
 
   char* search = strtok(&ret.query[0], "&");
 
-  while ( search != NULL ) {
+  while (search != NULL) {
 
-    char *value = strchr(search, '=');
+    char* value = strchr(search, '=');
     if (value != 0) {
       *value = 0;
       value++;
     }
 
-    if ( strcmp(CLOSE, search) == 0 && checkPinCode(ret.pinCode)) {
+    if (strcmp(CLOSE, search) == 0 && checkPinCode(ret.pinCode)) {
       handleValveCmd(value);
     } else if (strcmp(RESET, search) == 0 && checkPinCode(ret.pinCode)) {
       handleResetCmd(value);
-    } else if (strcmp(SHOWER_TIME , search) == 0 && checkPinCode(ret.pinCode)) {
-      showerTimeCmd(value);
+    } else if (strcmp(SHOWER_TIME, search) == 0 && checkPinCode(ret.pinCode)) {
+      setShowerTime(value);
+    } else if (strcmp(STAND_BY, search) == 0 && checkPinCode(ret.pinCode)) {
+      handleStandByCmd();
     } else if (strcmp(SHUTOFF_TIME, search) == 0 && checkPinCode(ret.pinCode)) {
-      showerShutoffTimeCmd(value);
+      setShowerTime(value);
     } else if (strcmp(TIME, search) == 0) {
-      getCurrentShowerTime();
-    } else if (strcmp(MENU, search) == 0) {
-      debug();
+      getCurrentShowerTime(true);
+    } else if (strcmp(DATA, search) == 0) {
+      getData();
     } else {
-      SerialBT.println("COMMAND_NOT_FOUND");
+      Serial.println(search);
+      client.sendError(1);  //COMMAND_NOT_FOUND
     }
 
     search = strtok(NULL, "&");
@@ -232,33 +209,48 @@ QueryAndPinCode splitPinCodeFromQuery(String query) {
 bool checkPinCode(String pinCode) {
   String eepromPinCode = data.getPinCode();
 
-  bool isCorrectPinCode =  false;
+  bool isCorrectPinCode = false;
 
   if (strcmp(pinCode.c_str(), eepromPinCode.c_str()) == 0) {
     isCorrectPinCode = true;
   } else {
-    SerialBT.println(F("WRONG_PIN_CODE"));
+    client.sendError(2);  // WRONG_PIN_CODE
   }
 
   return isCorrectPinCode;
 }
 
-void debug()
-{
-  String message;
 
-  message += g_waterOff ? "Valve is Closed\n\n" : "Valve is Opened\n\n";
-  message += "Shower time : " + String(g_showerTime) + "\n";
-  message += "Shower shutoff time : " + String(g_showerShutoffTime) + "\n";
-  message += "Monitor control time : " + String(g_monitor_mins) + "\n";
-  message += "Setup ended : " + String(g_isSetup ? "true\n" : "false\n");
-  message += "g_HallSensorPulses : " + String(g_HallSensorPulses) + "\n";
-  message += "g_waterOff : " + String(g_waterOff) + "\n";
-  message += "g_monitor_mins : " + String(g_monitor_mins) + "\n";
+void getData() {
+  DynamicJsonDocument doc(64);
 
+  JsonObject current = doc.createNestedObject("current");
+  current["openingTime"] = getCurrentShowerTime(false);
+  current["closingTime"] = millis() - (g_currentClosingTime / 1000 / 60);
 
+  doc["closingTime"] = data.getShowerShutoffTime();
+  doc["openingTime"] = data.getShowerTime();
+  doc["isSetup"] = g_isSetup;
+  doc["waterOff"] = g_waterOff;
+  doc["isStandBy"] = g_isStandBy;
 
-  SerialBT.println(message);
+  client.send(doc);
+}
+
+///////////////////////////////////////////////////////////////////
+//
+// standBy requested
+//
+///////////////////////////////////////////////////////////////////
+
+void handleStandByCmd() {
+  DynamicJsonDocument doc(16);
+
+  g_isStandBy = !g_isStandBy;
+
+  doc["isStandBy"] = g_isStandBy;
+
+  client.send(doc);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -267,12 +259,15 @@ void debug()
 //
 ///////////////////////////////////////////////////////////////////
 
-void handleOpenCmd()
-{
-  openWaterValve();
-  Serial.println(F("WATER_OPENED"));
-  SerialBT.println(F("WATER_OPENED"));
+void handleOpenCmd() {
+  DynamicJsonDocument doc(8);
 
+  openWaterValve();
+
+  doc["waterOff"] = 0;
+  g_currentClosingTime = 0;
+
+  client.send(doc);
   delay(2000);
 }
 
@@ -282,12 +277,16 @@ void handleOpenCmd()
 //
 ///////////////////////////////////////////////////////////////////
 
-void handleCloseCmd()
-{
-  closeWaterValve();
-  Serial.println(F("WATER_CLOSED"));
-  SerialBT.println(F("WATER_CLOSED"));
+void handleCloseCmd() {
+  DynamicJsonDocument doc(16);
+  g_currentClosingTime = millis();
 
+  closeWaterValve();
+
+  doc["waterOff"] = 1;
+  doc["closedAt"] = g_currentClosingTime;
+
+  client.send(doc);
   delay(2000);
 }
 
@@ -297,8 +296,7 @@ void handleCloseCmd()
 //
 ///////////////////////////////////////////////////////////////////
 
-void handleValveCmd(char * value)
-{
+void handleValveCmd(char* value) {
   if (atoi(value) == 1) {
     g_waterOff = true;
   } else {
@@ -312,19 +310,20 @@ void handleValveCmd(char * value)
 //
 ///////////////////////////////////////////////////////////////////
 
-void handleResetCmd(char * value)
-{
+void handleResetCmd(char* value) {
+  DynamicJsonDocument doc(8);
+
+  doc["reset"] = 0;
 
   if (strcmp(value, "all") == 0) {
+    doc["reset"] = 1;
     data.clear();
   } else {
+    doc["reset"] = 2;
     monitor.clearRpms();
   }
 
-  Serial.println(F("RESET_MONITORING"));
-  SerialBT.println(F("RESET_MONITORING"));
-
-  handleOpenCmd();
+  client.send(doc);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -333,13 +332,11 @@ void handleResetCmd(char * value)
 //
 ///////////////////////////////////////////////////////////////////
 
-void showerTimeCmd(char* value)
-{
+void setShowerTime(char* value) {
   int showerTime = atoi(value);
 
-  if ( showerTime < 1 || showerTime >= 255)
-  {
-    SerialBT.println(F("MUST_BE_BETWEEN_1_AND_255"));
+  if (showerTime < 1 || showerTime >= 255) {
+    client.sendError(3);  // MUST_BE_BETWEEN_1_AND_255
     return;
   }
   MonitoringTimer.stop();
@@ -351,7 +348,11 @@ void showerTimeCmd(char* value)
 
   monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
 
-  SerialBT.println("SHOWER_TIME_SAVED");
+  DynamicJsonDocument doc(8);
+
+  doc["saved"] = 1;
+
+  client.send(doc);
 
   MonitoringTimer.start();
 }
@@ -362,13 +363,11 @@ void showerTimeCmd(char* value)
 //
 ///////////////////////////////////////////////////////////////////
 
-void showerShutoffTimeCmd(char* value)
-{
+void setShowerShutoffTime(char* value) {
   int showerShutoffTime = atoi(value);
 
-  if ( showerShutoffTime < 1 || showerShutoffTime >= 255)
-  {
-    SerialBT.println(F("MUST_BE_BETWEEN_1_AND_255"));
+  if (showerShutoffTime < 1 || showerShutoffTime >= 255) {
+    client.sendError(3);  // MUST_BE_BETWEEN_1_AND_255
     return;
   }
 
@@ -379,7 +378,11 @@ void showerShutoffTimeCmd(char* value)
 
   monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
 
-  SerialBT.println("SUCCESS_SHOWER_SHUTOFF_TIME");
+  DynamicJsonDocument doc(8);
+
+  doc["saved"] = 1;
+
+  client.send(doc);
 
   MonitoringTimer.start();
 }
@@ -391,18 +394,25 @@ void showerShutoffTimeCmd(char* value)
 //
 ///////////////////////////////////////////////////////////////////
 
-void getCurrentShowerTime()
-{
+byte getCurrentShowerTime(bool toSend) {
   byte showerTime = 0;
   byte* rpms = monitor.getRpms();
 
-  for (int i = 0; i < g_monitor_mins; i++)
-  {
-    if (rpms[i])
-    {
+  for (int i = 0; i < g_monitor_mins; i++) {
+    if (rpms[i]) {
       showerTime++;
     }
   }
 
-  SerialBT.println("SHOWER_TIME : " + String(showerTime));
+  if (toSend) {
+    DynamicJsonDocument doc(8);
+
+    doc["actualShowerTime"] = showerTime;
+
+    client.send(doc);
+  }
+
+  MonitoringTimer.start();
+
+  return showerTime;
 }
