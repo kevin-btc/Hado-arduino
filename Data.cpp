@@ -1,3 +1,4 @@
+#include "HardwareSerial.h"
 #include "Data.h"
 
 #include  <EEPROM.h>

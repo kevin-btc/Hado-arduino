@@ -162,22 +162,25 @@ bool commands(String query) {
       value++;
     }
 
-    if (strcmp(CLOSE, search) == 0 && checkPinCode(ret.pinCode)) {
+    bool isCorrectPinCode = checkPinCode(ret.pinCode);
+
+    if (strcmp(CLOSE, search) == 0 && isCorrectPinCode) {
       handleValveCmd(value);
-    } else if (strcmp(RESET, search) == 0 && checkPinCode(ret.pinCode)) {
+    } else if (strcmp(RESET, search) == 0 && isCorrectPinCode) {
       handleResetCmd(value);
-    } else if (strcmp(SHOWER_TIME, search) == 0 && checkPinCode(ret.pinCode)) {
+    } else if (strcmp(SHOWER_TIME, search) == 0 && isCorrectPinCode) {
       setShowerTime(value);
-    } else if (strcmp(STAND_BY, search) == 0 && checkPinCode(ret.pinCode)) {
+    } else if (strcmp(STAND_BY, search) == 0 && isCorrectPinCode) {
       handleStandByCmd();
-    } else if (strcmp(SHUTOFF_TIME, search) == 0 && checkPinCode(ret.pinCode)) {
-      setShowerTime(value);
+    } else if (strcmp(SHUTOFF_TIME, search) == 0 && isCorrectPinCode) {
+      setShowerShutoffTime(value);
     } else if (strcmp(TIME, search) == 0) {
       getCurrentShowerTime(true);
     } else if (strcmp(DATA, search) == 0) {
       getData();
+    } else if (!isCorrectPinCode){
+      client.sendError(2);
     } else {
-      Serial.println(search);
       client.sendError(1);  //COMMAND_NOT_FOUND
     }
 
@@ -209,17 +212,12 @@ QueryAndPinCode splitPinCodeFromQuery(String query) {
 bool checkPinCode(String pinCode) {
   String eepromPinCode = data.getPinCode();
 
-  bool isCorrectPinCode = false;
-
   if (strcmp(pinCode.c_str(), eepromPinCode.c_str()) == 0) {
-    isCorrectPinCode = true;
-  } else {
-    client.sendError(2);  // WRONG_PIN_CODE
+    return true;
   }
 
-  return isCorrectPinCode;
+  return false;
 }
-
 
 void getData() {
   DynamicJsonDocument doc(64);

@@ -1,3 +1,4 @@
+#include "HardwareSerial.h"
 #include "Client.h"
 
 Client::Client(SoftwareSerial* _bluetooth) {
@@ -27,6 +28,7 @@ void Client::sendError(byte idError) {
 
   doc["error"] = idError;
 
+  serializeJson(doc, Serial);
   serializeJson(doc, *bluetooth);
 }
 
