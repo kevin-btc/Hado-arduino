@@ -149,48 +149,40 @@ void valveClosingTimer(String query) {
 ///////////////////////////////////////////////////////////////////
 
 
-bool commands(String query) {
-  auto ret = splitPinCodeFromQuery(query);
+bool commands(String request) {
+  auto req = parseDeviceRequest(request);
 
-  char* search = strtok(&ret.query[0], "&");
+  char* query = req.query.c_str();
+  char* value = strchr(query, '=');
 
-  while (search != NULL) {
+  if (value != 0) {
+    *value = 0;
+    value++;
+  }
 
-    char* value = strchr(search, '=');
-    if (value != 0) {
-      *value = 0;
-      value++;
-    }
-
-    bool isCorrectPinCode = checkPinCode(ret.pinCode);
-
-    if (strcmp(CLOSE, search) == 0 && isCorrectPinCode) {
-      handleValveCmd(value);
-    } else if (strcmp(RESET, search) == 0 && isCorrectPinCode) {
-      handleResetCmd(value);
-    } else if (strcmp(SHOWER_TIME, search) == 0 && isCorrectPinCode) {
-      setShowerTime(value);
-    } else if (strcmp(STAND_BY, search) == 0 && isCorrectPinCode) {
-      handleStandByCmd();
-    } else if (strcmp(SHUTOFF_TIME, search) == 0 && isCorrectPinCode) {
-      setShowerShutoffTime(value);
-    } else if (strcmp(TIME, search) == 0) {
-      getCurrentShowerTime(true);
-    } else if (strcmp(DATA, search) == 0) {
-      getData();
-    } else if (!isCorrectPinCode){
-      client.sendError(2);
-    } else {
-      client.sendError(1);  //COMMAND_NOT_FOUND
-    }
-
-    search = strtok(NULL, "&");
+  if (strcmp(CLOSE, query) == 0 && req.admin) {
+    handleValveCmd(value);
+  } else if (strcmp(RESET, query) == 0 && req.admin) {
+    handleResetCmd(value);
+  } else if (strcmp(SHOWER_TIME, query) == 0 && req.admin) {
+    setShowerTime(value);
+  } else if (strcmp(STAND_BY, query) == 0 && req.admin) {
+    handleStandByCmd();
+  } else if (strcmp(SHUTOFF_TIME, query) == 0 && req.admin) {
+    setShowerShutoffTime(value);
+  } else if (strcmp(TIME, query) == 0) {
+    getCurrentShowerTime(true);
+  } else if (strcmp(DATA, query) == 0) {
+    getData();
+  } else if (req.pinCode.length() != 0 && req.admin == false) {
+    client.sendError(2);  // WRONG_PIN_CODE
+  } else {
+    client.sendError(1);  //COMMAND_NOT_FOUND
   }
 }
 
-QueryAndPinCode splitPinCodeFromQuery(String query) {
-
-  QueryAndPinCode ret;
+DeviceRequest parseDeviceRequest(String query) {
+  DeviceRequest req;
 
   char* pinCode = query.c_str();
   char* rawSearch = strchr(pinCode, '/');
@@ -199,14 +191,15 @@ QueryAndPinCode splitPinCodeFromQuery(String query) {
     *rawSearch = 0;
     rawSearch++;
 
-    ret.query = rawSearch;
-    ret.pinCode = pinCode;
+    req.query = rawSearch;
+    req.pinCode = pinCode;
+    req.admin = checkPinCode(pinCode);
   } else {
-    ret.query = query;
-    ret.pinCode = "";
+    req.query = query;
+    req.pinCode = "";
   }
 
-  return ret;
+  return req;
 }
 
 bool checkPinCode(String pinCode) {
@@ -409,8 +402,6 @@ byte getCurrentShowerTime(bool toSend) {
 
     client.send(doc);
   }
-
-  MonitoringTimer.start();
 
   return showerTime;
 }

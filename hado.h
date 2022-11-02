@@ -71,10 +71,11 @@ Ticker MonitoringTimer([] {
 Data data;
 Valve valve;
 
-struct QueryAndPinCode {
-  String pinCode;
-  String query;
-} typedef QueryAndPinCode;
+struct DeviceRequest {
+  String  pinCode;
+  String  query;
+  bool    admin;
+} typedef DeviceRequest;
 
 void closeWaterValve();
 void openWaterValve();
