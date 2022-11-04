@@ -21,6 +21,7 @@ String Client::receive() {
 // Error 1 : "COMMAND_NOT_FOUND"
 // Error 2 : "WRONG_PIN_CODE"
 // Error 3 : "MUST_BE_BETWEEN_1_AND_255"
+// Error 4 : "PIN_CODE_NOT_SAVED"
 
 
 void Client::sendError(byte idError) {

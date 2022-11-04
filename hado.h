@@ -6,9 +6,10 @@
 #include <Ticker.h>
 
 #include "Data.h"
-#include "Monitor.h"
 #include "Valve.h"
 #include "Client.h"
+#include "Shower.h"
+
 
 #define TIMER_PERIOD 60000.0  // 60 secondes
 #define DELTA_MONITOR 5
@@ -31,15 +32,17 @@
 
 #define DOC_SIZE 250
 
+#define TIMER_PERIOD 1000.0  // 60 secondes
+
+
 ///////////////////////////////////////////////////////////////////
 //
 // Global variables
 //
 ///////////////////////////////////////////////////////////////////
 
-byte g_showerShutoffTime = 2;                        // Duration valve will be closed to warn time is up
-byte g_showerTime = 7;                               // Duration shower time
-byte g_monitor_mins = g_showerTime + DELTA_MONITOR;  // Duration control
+byte g_showerShutoffTime = 1;  // Duration valve will be closed to warn time is up in min
+byte g_showerTime = 1;         // Duration shower time in min
 
 bool checkIfSetup = false;
 bool g_isSetup = false;
@@ -51,8 +54,7 @@ volatile byte g_HallSensorPulses = 0;  // FlowMeter pulses that have occurred in
 
 unsigned long g_wakeUpTime = millis();
 unsigned long g_currentClosingTime = 0;
-unsigned long g_activityTime = 180000;  // 30 min * 60s * 1000ms;
-
+unsigned long g_activityTime = 30;  // mins
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -60,21 +62,22 @@ unsigned long g_activityTime = 180000;  // 30 min * 60s * 1000ms;
 //
 ///////////////////////////////////////////////////////////////////
 
-Monitor monitor;
 SoftwareSerial Bluetooth(BT_PIN_1, BT_PIN_2);
 Client client(&Bluetooth);
 
-Ticker MonitoringTimer([] {
-  monitor.onTimerTick(&g_HallSensorPulses, &g_waterOff);
-},
-                       TIMER_PERIOD);  // Interupt timer used for counting minutes
 Data data;
 Valve valve;
+Shower shower;
+
+Ticker MonitoringTimer([] {
+  shower.update(&g_HallSensorPulses, &g_waterOff);
+},
+                       TIMER_PERIOD);
 
 struct DeviceRequest {
-  String  pinCode;
-  String  query;
-  bool    admin;
+  String pinCode;
+  String query;
+  bool admin;
 } typedef DeviceRequest;
 
 void closeWaterValve();

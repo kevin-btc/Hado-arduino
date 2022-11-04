@@ -11,7 +11,6 @@ void setup() {
   // Initialize Serial port / Bluetooth
 
   Serial.begin(9600);
-
   client.begin(9600);
 
   // Initialize ElectroValve
@@ -25,8 +24,6 @@ void setup() {
   if (g_isSetup) {
     g_showerShutoffTime = data.getShowerShutoffTime();
     g_showerTime = data.getShowerTime();
-    g_monitor_mins = g_showerTime + DELTA_MONITOR;
-
   } else {
     data.setShowerTime(g_showerTime);
     data.setShowerShutoffTime(g_showerShutoffTime);
@@ -34,18 +31,19 @@ void setup() {
     data.setIsSetup(true);
   }
 
-  handleOpenCmd();  // add etat in eeprom
+  // Initialize Shower Timer
+  shower.init(data.getShowerTime(), data.getShowerShutoffTime());
 
-  monitor.init(g_monitor_mins, g_showerTime, g_showerShutoffTime);
-  monitor.setRpms(g_monitor_mins);
 
+  pinMode(HAL_SENSOR_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
+
+  handleOpenCmd();  // add etat in eeprom
 
   MonitoringTimer.start();
 }
 
 void loop() {
-  //  digitalWrite(13, HIGH);
 
   if (false && millis() - g_wakeUpTime > g_activityTime) {
     //    digitalWrite(13, LOW);
@@ -56,7 +54,6 @@ void loop() {
   }
 
   String query = "";
-
   MonitoringTimer.update();
 
   while (client.available()) {
@@ -172,6 +169,8 @@ bool commands(String request) {
     setShowerShutoffTime(value);
   } else if (strcmp(TIME, query) == 0) {
     getCurrentShowerTime(true);
+  } else if (strcmp(PIN_CODE, query) == 0 && req.admin) {
+    setPincode(value);
   } else if (strcmp(DATA, query) == 0) {
     getData();
   } else if (req.pinCode.length() != 0 && req.admin == false) {
@@ -311,7 +310,7 @@ void handleResetCmd(char* value) {
     data.clear();
   } else {
     doc["reset"] = 2;
-    monitor.clearRpms();
+    shower.reset();
   }
 
   client.send(doc);
@@ -330,22 +329,18 @@ void setShowerTime(char* value) {
     client.sendError(3);  // MUST_BE_BETWEEN_1_AND_255
     return;
   }
-  MonitoringTimer.stop();
 
   data.setShowerTime(showerTime);
 
   g_showerTime = data.getShowerTime();
-  g_monitor_mins = g_showerTime + DELTA_MONITOR;
 
-  monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
+  shower.set(g_showerTime, g_showerShutoffTime);
 
   DynamicJsonDocument doc(8);
 
   doc["saved"] = 1;
 
   client.send(doc);
-
-  MonitoringTimer.start();
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -362,22 +357,32 @@ void setShowerShutoffTime(char* value) {
     return;
   }
 
-  MonitoringTimer.stop();
-
   data.setShowerShutoffTime(showerShutoffTime);
   g_showerShutoffTime = showerShutoffTime;
 
-  monitor.update(g_monitor_mins, g_showerTime, g_showerShutoffTime);
+  shower.set(g_showerTime, g_showerShutoffTime);
 
   DynamicJsonDocument doc(8);
 
   doc["saved"] = 1;
 
   client.send(doc);
-
-  MonitoringTimer.start();
 }
 
+///////////////////////////////////////////////////////////////////
+//
+// shower Shutoff Time Command
+//
+///////////////////////////////////////////////////////////////////
+
+void setPincode(char* value) {
+    DynamicJsonDocument doc(8);
+
+    data.setPinCode(value);
+    doc["saved"] = 1;
+
+    client.send(doc);
+}
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -386,14 +391,7 @@ void setShowerShutoffTime(char* value) {
 ///////////////////////////////////////////////////////////////////
 
 byte getCurrentShowerTime(bool toSend) {
-  byte showerTime = 0;
-  byte* rpms = monitor.getRpms();
-
-  for (int i = 0; i < g_monitor_mins; i++) {
-    if (rpms[i]) {
-      showerTime++;
-    }
-  }
+  byte showerTime = shower.openingTime();
 
   if (toSend) {
     DynamicJsonDocument doc(8);
