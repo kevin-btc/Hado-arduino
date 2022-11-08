@@ -12,7 +12,7 @@ void Shower::init(byte showerTime, byte showerShutoffTime) {
   c_isSet = true;
 
   Chrono chronoOpening(Chrono::MICROS, false);
-  Chrono chronoClosing(Chrono::MICROS, false);
+  Chrono chronoPausing(Chrono::MICROS, false);
 }
 
 void Shower::set(byte showerTime, byte showerShutoffTime) {
@@ -24,13 +24,16 @@ void Shower::set(byte showerTime, byte showerShutoffTime) {
 
 void Shower::start() {
   chronoOpening.start();
-  
+
   Serial.println("start");
 }
 
 void Shower::reset() {
   chronoOpening.restart();
   chronoOpening.stop();
+
+  chronoPausing.restart();
+  chronoPausing.stop();
 
   chronoClosing.restart();
   chronoClosing.stop();
@@ -40,20 +43,24 @@ void Shower::reset() {
 
 void Shower::resume() {
   chronoOpening.resume();
-  chronoClosing.stop();
+  chronoPausing.stop();
 
   Serial.println("resume");
 }
 
 void Shower::stop() {
   chronoOpening.stop();
-  chronoClosing.resume();
+  chronoPausing.resume();
 
   Serial.println("stop");
 }
 
 unsigned long Shower::openingTime() {
   return chronoOpening.elapsed();  // return in ms
+}
+
+unsigned long Shower::pausingTime() {
+  return chronoPausing.elapsed();  // return in ms
 }
 
 unsigned long Shower::closingTime() {
@@ -65,11 +72,22 @@ bool Shower::isRunning() {
 }
 
 bool Shower::isPausing() {
+  return chronoPausing.isRunning();
+}
+
+bool Shower::isClosing() {
   return chronoClosing.isRunning();
 }
 
 bool Shower::isEndShowerOpening() {
   if (chronoOpening.hasPassed(c_showerTime * 60000)) {
+    return true;
+  }
+  return false;
+}
+
+bool Shower::isEndShowerPausing() {
+  if (chronoPausing.hasPassed(c_showerShutoffTime * 60000)) {
     return true;
   }
   return false;
@@ -86,14 +104,9 @@ void Shower::update(byte *sensorPulses, bool *waterOff) {
   if (!c_isSet) {
     Serial.println("MUST_BE_SET_BEFORE");
   }
-  // if (*sensorPulses) {
-  //   Serial.println("activity ! " + String(Shower::openingTime()) + " / " + String(c_showerTime * 60000));
-  // } else {
-  //   Serial.println("no activity ! " + String(Shower::closingTime()) + " / " + String(c_showerShutoffTime * 60000));
-  // }
 
-  long l_rpm = *sensorPulses;  // copy rpm value locally
-  *sensorPulses = 0;           // sensor reading done for this minute
+  long l_rpm = *sensorPulses;
+  *sensorPulses = 0;
 
   if (l_rpm != 0 && !Shower::isPausing() && !Shower::isRunning()) {
     Shower::start();
@@ -105,13 +118,16 @@ void Shower::update(byte *sensorPulses, bool *waterOff) {
     if (Shower::isEndShowerOpening() && !*waterOff) {
       *waterOff = true;
       Shower::reset();
+      chronoClosing.start();
       Serial.println("Closed valve");
     }
   } else if (Shower::isPausing()) {
-    if (Shower::isEndShowerClosing() && *waterOff == false) {
+    if (Shower::isEndShowerPausing() && *waterOff == false) {
       Shower::reset();
-   } else if (Shower::openingTime() <= 60000 && Shower::closingTime() >= 120000 && l_rpm == 0) {  // Reset if short use of water (e.g: washing hand);
+    } else if (Shower::openingTime() <= 60000 && Shower::pausingTime() >= 120000 && l_rpm == 0) {  // Reset if short use of water (e.g: washing hand);
       Shower::reset();
     }
+  } else if (Shower::isClosing() && Shower::isEndShowerClosing()) {
+    Shower::reset();
   }
 }

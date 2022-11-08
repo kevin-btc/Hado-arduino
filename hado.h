@@ -17,16 +17,6 @@
 
 #define HAL_SENSOR_PIN 2
 
-#define CLOSE "close"
-#define RESET "reset"
-#define TIME "time"
-#define MENU "menu"
-#define DATA "data"
-#define SHOWER_TIME "shower_time"
-#define SHUTOFF_TIME "shutoff_time"
-#define PIN_CODE "pin"
-#define STAND_BY "standby"
-
 #define BT_PIN_1 10
 #define BT_PIN_2 11
 

@@ -157,21 +157,23 @@ bool commands(String request) {
     value++;
   }
 
-  if (strcmp(CLOSE, query) == 0 && req.admin) {
+  if (strcmp(query, "close") == 0 && req.admin) {
     handleValveCmd(value);
-  } else if (strcmp(RESET, query) == 0 && req.admin) {
+  } else if (strcmp(query, "reset") == 0 && req.admin) {
     handleResetCmd(value);
-  } else if (strcmp(SHOWER_TIME, query) == 0 && req.admin) {
+  } else if (strcmp(query, "shower_time") == 0 && req.admin) {
     setShowerTime(value);
-  } else if (strcmp(STAND_BY, query) == 0 && req.admin) {
+  } else if (strcmp(query, "standby") == 0 && req.admin) {
     handleStandByCmd();
-  } else if (strcmp(SHUTOFF_TIME, query) == 0 && req.admin) {
+  } else if (strcmp(query, "shutoff_time") == 0 && req.admin) {
     setShowerShutoffTime(value);
-  } else if (strcmp(TIME, query) == 0) {
-    getCurrentShowerTime(true);
-  } else if (strcmp(PIN_CODE, query) == 0 && req.admin) {
+  } else if (strcmp(query, "pin") == 0 && req.admin) {
     setPincode(value);
-  } else if (strcmp(DATA, query) == 0) {
+  } else if (strcmp(query, "opening-time") == 0) {
+    getCurrentShowerOpeningTime(true);
+  }  else if (strcmp(query, "closing-time") == 0) {
+    getCurrentShowerOpeningTime(true);
+  }else if (strcmp(query, "data") == 0) {
     getData();
   } else if (req.pinCode.length() != 0 && req.admin == false) {
     client.sendError(2);  // WRONG_PIN_CODE
@@ -212,17 +214,19 @@ bool checkPinCode(String pinCode) {
 }
 
 void getData() {
-  DynamicJsonDocument doc(64);
+  DynamicJsonDocument doc(96);
 
   JsonObject current = doc.createNestedObject("current");
-  current["openingTime"] = getCurrentShowerTime(false);
-  current["closingTime"] = millis() - (g_currentClosingTime / 1000 / 60);
 
-  doc["closingTime"] = data.getShowerShutoffTime();
+  current["openingTime"] = getCurrentShowerOpeningTime(false);
+  current["pausingTime"] = getCurrentShowerPausingTime(false);
+  current["closingTime"] = getCurrentShowerClosingTime(false);
+
   doc["openingTime"] = data.getShowerTime();
-  doc["isSetup"] = g_isSetup;
+  doc["closingTime"] = data.getShowerShutoffTime();
+
+  doc["isStandBy"] = boolean(g_isStandBy);
   doc["waterOff"] = g_waterOff;
-  doc["isStandBy"] = g_isStandBy;
 
   client.send(doc);
 }
@@ -376,30 +380,70 @@ void setShowerShutoffTime(char* value) {
 ///////////////////////////////////////////////////////////////////
 
 void setPincode(char* value) {
-    DynamicJsonDocument doc(8);
+  DynamicJsonDocument doc(8);
 
-    data.setPinCode(value);
-    doc["saved"] = 1;
+  data.setPinCode(value);
+  doc["saved"] = 1;
 
-    client.send(doc);
+  client.send(doc);
 }
 
 ///////////////////////////////////////////////////////////////////
 //
-// Current Shower time
+// Current Shower Opening Time
 //
 ///////////////////////////////////////////////////////////////////
 
-byte getCurrentShowerTime(bool toSend) {
-  byte showerTime = shower.openingTime();
+unsigned long getCurrentShowerOpeningTime(bool toSend) {
+  unsigned long openingTime = shower.openingTime();
 
   if (toSend) {
-    DynamicJsonDocument doc(8);
+    DynamicJsonDocument doc(16);
+    JsonObject current = doc.createNestedObject("current");
 
-    doc["actualShowerTime"] = showerTime;
-
+    current["openingTime"] = openingTime;
     client.send(doc);
   }
 
-  return showerTime;
+  return openingTime;
+}
+
+///////////////////////////////////////////////////////////////////
+//
+// Current Shower Pausing Time
+//
+///////////////////////////////////////////////////////////////////
+
+unsigned long getCurrentShowerPausingTime(bool toSend) {
+  unsigned long pausingTime = shower.pausingTime();
+
+  if (toSend) {
+    DynamicJsonDocument doc(16);
+    JsonObject current = doc.createNestedObject("current");
+
+    current["pausingTime"] = pausingTime;
+    client.send(doc);
+  }
+
+  return pausingTime;
+}
+
+///////////////////////////////////////////////////////////////////
+//
+// Current Shower Closing Time
+//
+///////////////////////////////////////////////////////////////////
+
+unsigned long getCurrentShowerClosingTime(bool toSend) {
+  unsigned long closingTime = shower.closingTime();
+
+  if (toSend) {
+    DynamicJsonDocument doc(16);
+    JsonObject current = doc.createNestedObject("current");
+
+    current["closingTime"] = closingTime;
+    client.send(doc);
+  }
+
+  return closingTime;
 }

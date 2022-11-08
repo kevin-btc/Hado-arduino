@@ -7,6 +7,7 @@
 class Shower {
 private:
   Chrono chronoOpening;
+  Chrono chronoPausing;
   Chrono chronoClosing;
 
 public:
@@ -26,12 +27,15 @@ public:
   void stop();
 
   unsigned long openingTime();
+  unsigned long pausingTime();
   unsigned long closingTime();
 
   bool isRunning();
   bool isPausing();
+  bool isClosing();
 
   bool isEndShowerOpening();
+  bool isEndShowerPausing();
   bool isEndShowerClosing();
 
   void update(byte *sensorPulses, bool *waterOff);
