@@ -8,67 +8,51 @@
 
 void setup() {
 
-  // Initialize Serial port / Bluetooth
-
-  Serial.begin(9600);
+  // Initialize Bluetooth
   client.begin(9600);
+  Serial.begin(9600);
 
-  // Initialize ElectroValve
-
-  valve.init();
-
-  // Initialize Hado System
-
-  g_isSetup = data.getIsSetup();
-
-  if (g_isSetup) {
-    g_showerShutoffTime = data.getShowerShutoffTime();
-    g_showerTime = data.getShowerTime();
-  } else {
-    data.setShowerTime(g_showerTime);
-    data.setShowerShutoffTime(g_showerShutoffTime);
-    data.setPinCode("H4D0");
+  // Initialize Hado System at the first using
+  if (!data.getIsSetup()) {
+    data.setShowerTime(DEFAULT_SHOWER_TIME);
+    data.setShowerShutoffTime(DEFAULT_CLOSING_TIME);
+    data.setPinCode(DEFAULT_PIN);
+    data.setNumberShower(0);
+    data.setStandby(false);
     data.setIsSetup(true);
   }
+    // data.setStandby(true);
 
   // Initialize Shower Timer
   shower.init(data.getShowerTime(), data.getShowerShutoffTime());
 
-
+  // Initialize Flowmeter
   pinMode(HAL_SENSOR_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(HAL_SENSOR_PIN), onHallSensorEffect, RISING);
 
-  handleOpenCmd();  // add etat in eeprom
-
+  // Start Hado System
   MonitoringTimer.start();
+  handleOpenCmd();  // add etat in eeprom
 }
 
 void loop() {
 
-  if (false && millis() - g_wakeUpTime > g_activityTime) {
-    //    digitalWrite(13, LOW);
+  if (false && millis() - g_wakeUpTime > ACTIVITY_TIME) {
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-    //    digitalWrite(13, HIGH);
-
     g_wakeUpTime = millis();
   }
 
-  String query = "";
+  String query;
   MonitoringTimer.update();
 
-  while (client.available()) {
+  while (client.available() > 0) {
     query = client.receive();
-  }
-
-  while (Serial.available()) {
-    query = Serial.readString();
-  }
+  };
 
   if (query.length() != 0) {
     commands(query);
+    delay(500);
   }
-
-  valveClosingTimer(query);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -80,71 +64,19 @@ void loop() {
 void onHallSensorEffect() {
   // Increase the number of pulses detected by the sensor
   // of the water flowmeter
-  if (!g_isStandBy) {
+  if (!g_isStandBy && !shower.beta.getStandby()) {
     g_HallSensorPulses++;
-    Serial.println("sensor");
+    // Serial.println("beta pulse");
+  } else {
+    Serial.println("pulse");
   }
 }
-
-///////////////////////////////////////////////////////////////////
-//
-// Close water valve by controlling 1 servomotor to ball valve
-//
-///////////////////////////////////////////////////////////////////
-
-void closeWaterValve() {
-  g_waterOff = true;
-
-  valve.close();
-
-  g_HallSensorPulses = 0;
-}
-
-///////////////////////////////////////////////////////////////////
-//
-// Open water valve by controlling 1 servomotor to ball valve
-//
-///////////////////////////////////////////////////////////////////
-
-void openWaterValve() {
-  g_waterOff = false;
-
-  valve.open();
-
-  g_HallSensorPulses = 0;
-}
-
-void valveClosingTimer(String query) {
-
-
-  if (g_waterOff) {
-    handleCloseCmd();
-    for (int t = 0; t < g_showerShutoffTime * MINUTE_IN_MS; t += 200) {
-      query = "";
-      while (client.available()) {
-        query = client.receive();
-      }
-
-      if (query.length() != 0) {
-        commands(query);
-        if (!g_waterOff) {
-          return;
-        }
-      }
-      delay(200);
-    }
-    handleOpenCmd();
-  }
-}
-
-
 
 ///////////////////////////////////////////////////////////////////
 //
 // Bluetooth command section
 //
 ///////////////////////////////////////////////////////////////////
-
 
 bool commands(String request) {
   auto req = parseDeviceRequest(request);
@@ -169,15 +101,13 @@ bool commands(String request) {
     setShowerShutoffTime(value);
   } else if (strcmp(query, "pin") == 0 && req.admin) {
     setPincode(value);
-  } else if (strcmp(query, "opening-time") == 0) {
-    getCurrentShowerOpeningTime(true);
-  }  else if (strcmp(query, "closing-time") == 0) {
-    getCurrentShowerOpeningTime(true);
-  }else if (strcmp(query, "data") == 0) {
-    getData();
+  } else if (strcmp(query, "data") == 0) {
+    sendDataToClient();
+  } else if (strcmp(query, "unlock") == 0) {  // TO DELETE AFTER BETA TESTING
+    unlockCmd(value);
   } else if (req.pinCode.length() != 0 && req.admin == false) {
     client.sendError(2);  // WRONG_PIN_CODE
-  } else {
+  } else if (strlen(query) > 1) {
     client.sendError(1);  //COMMAND_NOT_FOUND
   }
 }
@@ -209,90 +139,102 @@ bool checkPinCode(String pinCode) {
   if (strcmp(pinCode.c_str(), eepromPinCode.c_str()) == 0) {
     return true;
   }
-
   return false;
 }
 
-void getData() {
-  DynamicJsonDocument doc(96);
+///////////////////////////////////////////////////////////////////
+//
+// Send all data to Client
+//
+///////////////////////////////////////////////////////////////////
+
+void sendDataToClient(bool saved) {
+  DynamicJsonDocument doc(DOC_SIZE);
 
   JsonObject current = doc.createNestedObject("current");
 
-  current["openingTime"] = getCurrentShowerOpeningTime(false);
-  current["pausingTime"] = getCurrentShowerPausingTime(false);
-  current["closingTime"] = getCurrentShowerClosingTime(false);
+  current["openingTime"] = shower.openingTime();
+  current["pausingTime"] = shower.pausingTime();
+  current["closingTime"] = shower.closingTime();
 
   doc["openingTime"] = data.getShowerTime();
   doc["closingTime"] = data.getShowerShutoffTime();
+  doc["nShower"] = data.getNumberShower();
 
   doc["isStandBy"] = boolean(g_isStandBy);
-  doc["waterOff"] = g_waterOff;
+  doc["waterOff"] = shower.valve.isClosed;
 
+  if (saved) doc["saved"] = 1;
+
+  serializeJson(doc, Serial);
   client.send(doc);
 }
 
 ///////////////////////////////////////////////////////////////////
 //
-// standBy requested
+// unlock beta test // TO DELETE AFTER BETA TESTING
+//
+///////////////////////////////////////////////////////////////////
+
+void unlockCmd(const char* value) {
+  bool res = shower.beta.unlock(value);
+  
+  if (res) {
+    sendDataToClient(true);
+  } else {
+    client.sendError(5);
+  }
+}
+
+
+
+///////////////////////////////////////////////////////////////////
+//
+// Request to standy the monitoring
 //
 ///////////////////////////////////////////////////////////////////
 
 void handleStandByCmd() {
-  DynamicJsonDocument doc(16);
-
   g_isStandBy = !g_isStandBy;
 
-  doc["isStandBy"] = g_isStandBy;
-
-  client.send(doc);
+  sendDataToClient(true);
 }
 
 ///////////////////////////////////////////////////////////////////
 //
-// Open requested
+// Request to open the valve
 //
 ///////////////////////////////////////////////////////////////////
 
 void handleOpenCmd() {
-  DynamicJsonDocument doc(8);
+  g_HallSensorPulses = 0;
 
-  openWaterValve();
-
-  doc["waterOff"] = 0;
-  g_currentClosingTime = 0;
-
-  client.send(doc);
-  delay(2000);
+  shower.openValve();
+  sendDataToClient(true);
 }
 
 ///////////////////////////////////////////////////////////////////
 //
-// Close requested
+// Request to close the valve
 //
 ///////////////////////////////////////////////////////////////////
 
 void handleCloseCmd() {
-  DynamicJsonDocument doc(16);
-  g_currentClosingTime = millis();
+  g_HallSensorPulses = 0;
 
-  closeWaterValve();
-
-  doc["waterOff"] = 1;
-  doc["closedAt"] = g_currentClosingTime;
-
-  client.send(doc);
-  delay(2000);
+  shower.closeValve();
+  sendDataToClient(true);
 }
 
 ///////////////////////////////////////////////////////////////////
 //
-// Manualy close/open requested
+// Request to close/open manualy the valve
 //
 ///////////////////////////////////////////////////////////////////
 
 void handleValveCmd(char* value) {
   if (atoi(value) == 1) {
-    g_waterOff = true;
+    handleCloseCmd();
   } else {
     handleOpenCmd();
   }
@@ -300,24 +242,19 @@ void handleValveCmd(char* value) {
 
 ///////////////////////////////////////////////////////////////////
 //
-// Reset requested
+// Request to soft or hard reset the data
 //
 ///////////////////////////////////////////////////////////////////
 
 void handleResetCmd(char* value) {
-  DynamicJsonDocument doc(8);
-
-  doc["reset"] = 0;
-
-  if (strcmp(value, "all") == 0) {
-    doc["reset"] = 1;
+  if (strcmp(value, "all") == 0 && !BETA_MODE) {
     data.clear();
   } else {
-    doc["reset"] = 2;
+    shower.openValve();
     shower.reset();
   }
 
-  client.send(doc);
+  sendDataToClient();
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -336,15 +273,10 @@ void setShowerTime(char* value) {
 
   data.setShowerTime(showerTime);
 
-  g_showerTime = data.getShowerTime();
+  int showerShutoffTime = data.getShowerShutoffTime();
 
-  shower.set(g_showerTime, g_showerShutoffTime);
-
-  DynamicJsonDocument doc(8);
-
-  doc["saved"] = 1;
-
-  client.send(doc);
+  shower.set(showerTime, showerShutoffTime);
+  sendDataToClient(true);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -362,15 +294,11 @@ void setShowerShutoffTime(char* value) {
   }
 
   data.setShowerShutoffTime(showerShutoffTime);
-  g_showerShutoffTime = showerShutoffTime;
 
-  shower.set(g_showerTime, g_showerShutoffTime);
+  int showerTime = data.getShowerTime();
 
-  DynamicJsonDocument doc(8);
-
-  doc["saved"] = 1;
-
-  client.send(doc);
+  shower.set(showerTime, showerShutoffTime);
+  sendDataToClient(true);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -380,70 +308,6 @@ void setShowerShutoffTime(char* value) {
 ///////////////////////////////////////////////////////////////////
 
 void setPincode(char* value) {
-  DynamicJsonDocument doc(8);
-
   data.setPinCode(value);
-  doc["saved"] = 1;
-
-  client.send(doc);
-}
-
-///////////////////////////////////////////////////////////////////
-//
-// Current Shower Opening Time
-//
-///////////////////////////////////////////////////////////////////
-
-unsigned long getCurrentShowerOpeningTime(bool toSend) {
-  unsigned long openingTime = shower.openingTime();
-
-  if (toSend) {
-    DynamicJsonDocument doc(16);
-    JsonObject current = doc.createNestedObject("current");
-
-    current["openingTime"] = openingTime;
-    client.send(doc);
-  }
-
-  return openingTime;
-}
-
-///////////////////////////////////////////////////////////////////
-//
-// Current Shower Pausing Time
-//
-///////////////////////////////////////////////////////////////////
-
-unsigned long getCurrentShowerPausingTime(bool toSend) {
-  unsigned long pausingTime = shower.pausingTime();
-
-  if (toSend) {
-    DynamicJsonDocument doc(16);
-    JsonObject current = doc.createNestedObject("current");
-
-    current["pausingTime"] = pausingTime;
-    client.send(doc);
-  }
-
-  return pausingTime;
-}
-
-///////////////////////////////////////////////////////////////////
-//
-// Current Shower Closing Time
-//
-///////////////////////////////////////////////////////////////////
-
-unsigned long getCurrentShowerClosingTime(bool toSend) {
-  unsigned long closingTime = shower.closingTime();
-
-  if (toSend) {
-    DynamicJsonDocument doc(16);
-    JsonObject current = doc.createNestedObject("current");
-
-    current["closingTime"] = closingTime;
-    client.send(doc);
-  }
-
-  return closingTime;
+  sendDataToClient(true);
 }

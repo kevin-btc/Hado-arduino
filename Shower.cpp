@@ -13,19 +13,19 @@ void Shower::init(byte showerTime, byte showerShutoffTime) {
 
   Chrono chronoOpening(Chrono::MICROS, false);
   Chrono chronoPausing(Chrono::MICROS, false);
+
+  beta.init();  // TO DELETE AFTER BETA TESTING
 }
 
 void Shower::set(byte showerTime, byte showerShutoffTime) {
   c_showerTime = showerTime;                //in min
   c_showerShutoffTime = showerShutoffTime;  //in min
 
-  Shower::reset();
+  reset();
 }
 
 void Shower::start() {
   chronoOpening.start();
-
-  Serial.println("start");
 }
 
 void Shower::reset() {
@@ -37,22 +37,16 @@ void Shower::reset() {
 
   chronoClosing.restart();
   chronoClosing.stop();
-
-  Serial.println("reset");
 }
 
 void Shower::resume() {
   chronoOpening.resume();
   chronoPausing.stop();
-
-  Serial.println("resume");
 }
 
 void Shower::stop() {
   chronoOpening.stop();
   chronoPausing.resume();
-
-  Serial.println("stop");
 }
 
 unsigned long Shower::openingTime() {
@@ -100,34 +94,54 @@ bool Shower::isEndShowerClosing() {
   return false;
 }
 
-void Shower::update(byte *sensorPulses, bool *waterOff) {
-  if (!c_isSet) {
-    Serial.println("MUST_BE_SET_BEFORE");
-  }
+void Shower::openValve() {
+  reset();
+  valve.open();
+}
 
+void Shower::closeValve() {
+  reset();
+  chronoClosing.start();
+  valve.close();
+}
+
+void Shower::monitor(byte *sensorPulses, Client *client) {
   long l_rpm = *sensorPulses;
   *sensorPulses = 0;
 
-  if (l_rpm != 0 && !Shower::isPausing() && !Shower::isRunning()) {
-    Shower::start();
-  } else if (l_rpm == 0 && Shower::isRunning()) {
-    Shower::stop();
-  } else if (l_rpm != 0 && Shower::isPausing() && Shower::openingTime()) {
-    Shower::resume();
-  } else if (Shower::isRunning()) {
-    if (Shower::isEndShowerOpening() && !*waterOff) {
-      *waterOff = true;
-      Shower::reset();
-      chronoClosing.start();
-      Serial.println("Closed valve");
+
+  if (l_rpm != 0 && !isRunning() && !isPausing() && !isClosing()) {
+    start();
+  } else if (l_rpm == 0 && isRunning()) {
+    stop();
+  } else if (l_rpm != 0 && isPausing() && openingTime()) {
+    resume();
+  }
+
+  if (isRunning()) {
+    if (isEndShowerOpening() && !valve.isClosed) {
+      closeValve();
+      // TO DELETE AFTER BETA TESTING
+      byte res = beta.setNumberBetaShower();
+
+      if (res) {
+        DynamicJsonDocument doc(8);
+
+        doc["notification"] = res;  
+
+        client->send(doc);
+      }
+      /////////////////////////////////
     }
-  } else if (Shower::isPausing()) {
-    if (Shower::isEndShowerPausing() && *waterOff == false) {
-      Shower::reset();
-    } else if (Shower::openingTime() <= 60000 && Shower::pausingTime() >= 120000 && l_rpm == 0) {  // Reset if short use of water (e.g: washing hand);
-      Shower::reset();
+  } else if (isPausing()) {
+    if (isEndShowerPausing() && !valve.isClosed) {
+      reset();
+    } else if (openingTime() <= 60000 && pausingTime() >= 120000 && l_rpm == 0) {  // Reset if short use of water (e.g: washing hand);
+      reset();
     }
-  } else if (Shower::isClosing() && Shower::isEndShowerClosing()) {
-    Shower::reset();
+  } else if (isClosing()) {
+    if (isEndShowerClosing() && valve.isClosed) {
+      openValve();
+    }
   }
 }

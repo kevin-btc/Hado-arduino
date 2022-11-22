@@ -66,14 +66,27 @@ String Data::getPinCode() {
 
   return String(pinCode);
 }
+///////////////////////////////////////////////////////////////
+// To remove after beta-testing
+///////////////////////////////////////////////////////////////
 
-void Data::setBTMode(bool BTAdminMode) {
-  EEPROM.write(HADO_EEPROM_BT_MODE, BTAdminMode);
+void Data::setStandby(bool standby) {
+  EEPROM.write(HADO_EEPROM_BETA_STANDBY, standby);
 }
 
-bool Data::getBTMode() {
-  return EEPROM.read(HADO_EEPROM_BT_MODE);
+bool Data::getStandby() {
+  return EEPROM.read(HADO_EEPROM_BETA_STANDBY);
 }
+
+void Data::setNumberShower(byte numberBetaShower) {
+  EEPROM.write(HADO_EEPROM_BETA_SHOWER, numberBetaShower);
+}
+
+byte Data::getNumberShower() {
+  return EEPROM.read(HADO_EEPROM_BETA_SHOWER);
+}
+
+///////////////////////////////////////////////////////////////
 
 void Data::clear() {
   void(* resetFunc) (void) = 0;

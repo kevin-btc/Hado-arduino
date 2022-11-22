@@ -24,7 +24,4 @@ public:
   void            begin(long speed);
 };
 
-
-
-
 #endif

@@ -6,23 +6,25 @@
 #include <Ticker.h>
 
 #include "Data.h"
-#include "Valve.h"
 #include "Client.h"
 #include "Shower.h"
-
-
-#define TIMER_PERIOD 60000.0  // 60 secondes
-#define DELTA_MONITOR 5
-#define MINUTE_IN_MS 60000
 
 #define HAL_SENSOR_PIN 2
 
 #define BT_PIN_1 10
 #define BT_PIN_2 11
 
-#define DOC_SIZE 250
+#define DOC_SIZE 64
 
 #define TIMER_PERIOD 1000.0  // 60 secondes
+
+#define DEFAULT_SHOWER_TIME 2
+#define DEFAULT_CLOSING_TIME 2
+
+#define ACTIVITY_TIME 30
+#define DEFAULT_PIN "H4D0"
+
+#define BETA_MODE true
 
 
 ///////////////////////////////////////////////////////////////////
@@ -31,20 +33,12 @@
 //
 ///////////////////////////////////////////////////////////////////
 
-byte g_showerShutoffTime = 1;  // Duration valve will be closed to warn time is up in min
-byte g_showerTime = 1;         // Duration shower time in min
-
-bool checkIfSetup = false;
-bool g_isSetup = false;
 bool g_isStandBy = false;
 
 // global variables accessed from ISR that need to be protected
-volatile bool g_waterOff = false;      // True if valve needs to be closed temporarily
 volatile byte g_HallSensorPulses = 0;  // FlowMeter pulses that have occurred in the current minute
 
 unsigned long g_wakeUpTime = millis();
-unsigned long g_currentClosingTime = 0;
-unsigned long g_activityTime = 30;  // mins
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -56,11 +50,10 @@ SoftwareSerial Bluetooth(BT_PIN_1, BT_PIN_2);
 Client client(&Bluetooth);
 
 Data data;
-Valve valve;
 Shower shower;
 
 Ticker MonitoringTimer([] {
-  shower.update(&g_HallSensorPulses, &g_waterOff);
+  shower.monitor(&g_HallSensorPulses, &client);
 },
                        TIMER_PERIOD);
 
@@ -70,9 +63,6 @@ struct DeviceRequest {
   bool admin;
 } typedef DeviceRequest;
 
-void closeWaterValve();
-void openWaterValve();
-void onHallEffect();
-void onTimerTick();
+void sendDataToClient(bool saved = false);
 
 #endif

@@ -22,6 +22,7 @@ String Client::receive() {
 // Error 2 : "WRONG_PIN_CODE"
 // Error 3 : "MUST_BE_BETWEEN_1_AND_255"
 // Error 4 : "PIN_CODE_NOT_SAVED"
+// Error 5 : "UNLOCK_ERROR"
 
 
 void Client::sendError(byte idError) {
@@ -34,10 +35,6 @@ void Client::sendError(byte idError) {
 }
 
 void Client::send(const DynamicJsonDocument& payload, bool debug = true) {
-  // if (debug && Serial.available()) {
-    serializeJson(payload, Serial);
-  // }
-
   if (bluetooth->isListening()) {
     serializeJson(payload, *bluetooth);
   } else {

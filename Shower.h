@@ -4,22 +4,29 @@
 #include <Arduino.h>
 #include <Chrono.h>
 
-class Shower {
+#include "Valve.h"
+#include "Beta.h"  // TO DELETE AFTER BETA-TESTING
+#include "Client.h"  // TO DELETE AFTER BETA-TESTING
+
+
+class Shower: Beta {
 private:
   Chrono chronoOpening;
   Chrono chronoPausing;
   Chrono chronoClosing;
 
 public:
+  Valve valve;
+  Beta  beta; // TO DELETE AFTER BETA-TESTING
+
+
   byte c_showerTime;
   byte c_showerShutoffTime;
 
   bool c_isSet = false;
 
   void init(byte showerTime, byte showerShutoffTime);
-
   void set(byte showerTime, byte showerShutoffTime);
-
 
   void start();
   void reset();
@@ -38,7 +45,10 @@ public:
   bool isEndShowerPausing();
   bool isEndShowerClosing();
 
-  void update(byte *sensorPulses, bool *waterOff);
+  void monitor(byte *sensorPulses, Client *client);
+
+  void openValve();
+  void closeValve();
 };
 
 #endif

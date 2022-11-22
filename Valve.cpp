@@ -1,7 +1,7 @@
 #include "Valve.h"
 
 
-void Valve::init() {
+Valve::Valve() {
   pinMode(VALVE_CLOSE_PIN, OUTPUT);
   pinMode(VALVE_OPEN_PIN, OUTPUT);
   pinMode(VALVE_ENABLE_PIN, OUTPUT);
@@ -9,6 +9,8 @@ void Valve::init() {
 }
 
 void Valve::open() {
+  isClosed = false;
+  
   digitalWrite(VALVE_CLOSE_PIN, LOW);
   digitalWrite(VALVE_OPEN_PIN, LOW);
 
@@ -19,6 +21,8 @@ void Valve::open() {
 }
 
 void Valve::close() {
+  isClosed = true;
+
   digitalWrite(VALVE_CLOSE_PIN, LOW);
   digitalWrite(VALVE_OPEN_PIN, LOW);
 
@@ -26,5 +30,5 @@ void Valve::close() {
 
   delay(500);
 
-  digitalWrite(VALVE_OPEN_PIN, LOW);
+  digitalWrite(VALVE_CLOSE_PIN, LOW);
 }
